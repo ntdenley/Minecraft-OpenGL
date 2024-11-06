@@ -195,7 +195,7 @@ void Chunk::AddFace(glm::ivec3 pos, Direction direction) {
         vertices.push_back(*ptr++);
         vertices.push_back(*ptr);
         vertices.push_back(color);
-        vertices.push_back(0);
+        vertices.push_back(1); // Pushing 0 for now, will be used for texture layer later
     }
 
     // Indices

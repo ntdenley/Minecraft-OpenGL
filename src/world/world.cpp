@@ -1,44 +1,57 @@
 #include <world/world.h>
 #include <iostream>
+#include <functional>
 
 using namespace std;
 
 World *World::world = nullptr;
 
-World::World(Shader *shader) : shader(shader), running(true) {
-    chunk_thread = thread(&World::GenerateChunks, this);
-}
+World::World(Shader *shader, size_t num_threads) : shader(shader), running(true) {
+    cout << "Num threads: " << num_threads << endl;
+    for(size_t i = 0; i < num_threads; i++){
+        threads_.emplace_back([this] {
+            while(true){
+                function<void()> task;
+                {
+                    // Lokc the queue so data can be shared safely
+                    unique_lock<mutex> lock(queue_mutex_);
 
-World::~World() {
-    running = false;
-    if (chunk_thread.joinable()) {
-        chunk_thread.join();
+                    // Wait until there is a task in the queue
+                    cv_.wait(lock, [this] {
+                        return !task_queue_.empty() || stop_; 
+                    });
+
+                    if(stop_ && task_queue_.empty())
+                        return;
+                    
+                    // Get the task
+                    task = move(task_queue_.front());
+                    task_queue_.pop();
+                }
+
+                task();
+            }
+        });
     }
 }
 
-void World::GenerateChunks(){
-    while (running){
-        unique_lock<mutex> lock(chunk_mutex);
-        if(!chunk_queue.empty()){
-            glm::ivec3 chunk_pos = chunk_queue.front();
-            auto chunk_key = make_tuple(chunk_pos.x, chunk_pos.y, chunk_pos.z);
-            chunk_queue.pop();
-            chunks_to_render.erase(chunk_key);
-            lock.unlock();
+World::~World() {
+    {
+        // Lock the mutex to safely update stop
+        unique_lock<mutex> lock(queue_mutex_);
+        stop_ = true;
+    }
 
-            // Load the chunk
-            Chunk *chunk = new Chunk(chunk_pos, shader);
-            chunk->Generate();
+    // Notify all threads to stop
+    cv_.notify_all();
 
-            lock.lock();
-            if (chunks.find(chunk_key) == chunks.end()) {
-                chunks[chunk_key] = chunk;
-            }
-            lock.unlock();
-        } else {
-            lock.unlock();
-            this_thread::sleep_for(chrono::milliseconds(10));
-        }
+    // Join all threads
+    for(auto &thread : threads_){
+        thread.join();
+    }
+    running = false;
+    if (chunk_thread.joinable()) {
+        chunk_thread.join();
     }
 }
 
@@ -49,6 +62,29 @@ Chunk* World::GetChunk(int chunk_x, int chunk_y, int chunk_z) {
         return it->second;
     }
     return nullptr;
+}
+
+void World::queue_task(function<void()> task) {
+    {
+        // Lock the queue to safely add the task
+        unique_lock<mutex> lock(queue_mutex_);
+        task_queue_.emplace(move(task));
+    }
+
+    // Notify a thread that there is a task
+    cv_.notify_one();
+}
+
+void World::GenerateChunk(glm::ivec3 chunk_pos){
+    queue_task([this, chunk_pos] {
+        auto chunk_key = make_tuple(chunk_pos.x, chunk_pos.y, chunk_pos.z);
+        Chunk *chunk = new Chunk(chunk_pos, shader);
+        chunk->Generate();
+        lock_guard<mutex> lock(chunk_mutex);
+        if (chunks.find(chunk_key) == chunks.end()) {
+            chunks[chunk_key] = chunk;
+        }
+    });
 }
 
 void World::Update(glm::vec3 player_pos) {
@@ -79,9 +115,8 @@ void World::Update(glm::vec3 player_pos) {
 
             // Chunk is not loaded, add it to the queue
             else if (chunks_to_render.find(chunk_tup) == chunks_to_render.end()){
-                chunk_queue.push(glm::ivec3(new_chunk_x, new_chunk_y, new_chunk_z));
-                chunks_to_render.insert(chunk_tup);
-                chunks_loading++;
+                cout << "Queueing chunk: " << new_chunk_x << ", " << new_chunk_y << ", " << new_chunk_z << endl;
+                GenerateChunk(glm::ivec3(new_chunk_x, new_chunk_y, new_chunk_z));
             }
         }
 

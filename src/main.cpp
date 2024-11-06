@@ -116,7 +116,7 @@ int main() {
         // If one second has passed, print the FPS and reset the frame count and total time
         if (totalTime >= 1.0)
         {
-            std::cout << "FPS: " << frameCount << std::endl;
+            //std::cout << "FPS: " << frameCount << std::endl;
             frameCount = 0;
             totalTime -= 1.0;
         }
