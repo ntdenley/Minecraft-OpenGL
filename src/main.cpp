@@ -42,8 +42,10 @@ int main() {
 
     // Initialize the GLFW window
     glfwInit();
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4); // Using OpenGL Major Version 3..
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6); // .. + Minor Version 3 = 3.3
+    // Request 3.3 core (matches the shipped shaders). Avoid 4.6 — many Mesa
+    // drivers (including llvmpipe) only expose up to 4.5 and window creation fails.
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
     // Use the core profile
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);

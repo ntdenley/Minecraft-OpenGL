@@ -1,2 +1,6 @@
 /.vscode
+/build/
+/src/minecraft
 main.exe
+*.o
+*.obj
