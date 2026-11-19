@@ -22,7 +22,7 @@ vector<string> getTextureFiles(const string &dir){
 }
 
 void loadTextures(){
-    vector<string> files = getTextureFiles("assets\\textures");
+    vector<string> files = getTextureFiles("assets/textures");
 
     stbi_set_flip_vertically_on_load(true);
 
