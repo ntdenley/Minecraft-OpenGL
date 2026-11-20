@@ -16,6 +16,7 @@
 #include <util/camera.h>
 #include <vfx/shader.h>
 #include <vfx/textures.h>
+#include <ui/debug_ui.h>
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
@@ -34,6 +35,9 @@ Camera camera = Camera(glm::vec3(0.0f, 5.0f, 0.0f));
 // timing
 float deltaTime = 0.0f;	// Time between current frame and last frame
 float lastFrame = 0.0f; // Time of last frame
+
+// on-screen debug readout
+DebugUI debugUI;
 
 int main() {
 
@@ -79,6 +83,8 @@ int main() {
     // Set the viewport size
     glViewport(0, 0, SCR_WIDTH, SCR_HEIGHT);
 
+    debugUI.Init();
+
     // Configure global OpenGL state
     glClearColor(0.3569f, 0.6471f, 0.7725f, 1.0f);
     glEnable(GL_DEPTH_TEST);
@@ -113,10 +119,10 @@ int main() {
         frameCount++;
         totalTime += deltaTime;
 
-        // If one second has passed, print the FPS and reset the frame count and total time
+        // If one second has passed, update the on-screen FPS and reset the counters
         if (totalTime >= 1.0)
         {
-            //std::cout << "FPS: " << frameCount << std::endl;
+            debugUI.SetFps(frameCount);
             frameCount = 0;
             totalTime -= 1.0;
         }
@@ -136,20 +142,24 @@ int main() {
 
         // Get the projection matrix
         glm::mat4 projection = glm::mat4(1.0f);
-        projection = glm::perspective(glm::radians(camera.Zoom), float(SCR_WIDTH) / float(SCR_HEIGHT), 0.1f, 1000.0f); 
+        projection = glm::perspective(glm::radians(camera.Zoom), float(SCR_WIDTH) / float(SCR_HEIGHT), 0.1f, 3000.0f); 
 
         // Pass the matrices to the shader
         shaderProgram.setMat4("projection", projection);
         shaderProgram.setMat4("view", view);
 
         // Load and render the chunks
-        World::world->Update(camera.Position);
+        World::world->Update(camera.Position, projection * view);
+
+        debugUI.Render(SCR_WIDTH, SCR_HEIGHT);
 
         // glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
         // -------------------------------------------------------------------------------
         glfwPollEvents();  
         glfwSwapBuffers(window);
     }
+
+    debugUI.Shutdown();
 
     // Terminate GLFW
     glfwTerminate();
@@ -158,6 +168,7 @@ int main() {
 
 bool mKeyReleased = true;
 bool escKeyReleased = true;
+bool f3KeyReleased = true;
 
 
 float lastX = SCR_WIDTH / 2.0f;
@@ -195,6 +206,15 @@ void processInput(GLFWwindow *window)
     else if(glfwGetKey(window, GLFW_KEY_M) == GLFW_RELEASE)
     {
         mKeyReleased = true;
+    }
+    if(glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS && f3KeyReleased)
+    {
+        debugUI.Toggle();
+        f3KeyReleased = false;
+    }
+    else if(glfwGetKey(window, GLFW_KEY_F3) == GLFW_RELEASE)
+    {
+        f3KeyReleased = true;
     }
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
         camera.ProcessKeyboard(FORWARD, deltaTime);
